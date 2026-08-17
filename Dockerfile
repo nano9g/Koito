@@ -71,7 +71,7 @@ ENV UID=${UID}
 ENV GID=${GID}
 
 ARG KOITO_CONFIG_DIR=/config
-ENV KOITO_CONFIG_DIR=${CONFIG_DIR_ENV}
+ENV KOITO_CONFIG_DIR=${KOITO_CONFIG_DIR}
 
 RUN apk add --no-cache vips ca-certificates && \
     addgroup -g ${GID} -S koito && \
