@@ -1,53 +1,94 @@
-FROM --platform=$BUILDPLATFORM node AS frontend
+ARG NODE_VERSION=26
+ARG GO_VERSION=1.26
+ARG ALPINE_VERSION=3.24
 
-ARG KOITO_VERSION
-ENV VITE_KOITO_VERSION=$KOITO_VERSION
-ENV BUILD_TARGET=docker
+# ---- Frontend build ----
+FROM node:${NODE_VERSION}-alpine${ALPINE_VERSION} AS frontend
+
+# Enable if testing only backend build
+# RUN mkdir -p /client/build
+
+ARG KOITO_VERSION=dev
+
+ENV VITE_KOITO_VERSION=${KOITO_VERSION} \
+    BUILD_TARGET=docker
 
 WORKDIR /client
-RUN npm install -g corepack
-RUN corepack enable && corepack prepare yarn@4 --activate
-COPY ./client .
-RUN yarn install
+
+RUN npm install -g corepack && \
+    corepack enable && \
+    corepack prepare yarn@4 --activate
+
+COPY ./client/ .
+
+RUN yarn set version stable && \
+    yarn install
 
 RUN yarn run build
 
 RUN find ./build/client -type f \( -name "*.js" -o -name "*.css" -o -name "*.html" -o -name "*.svg" \) -exec gzip -k -9 {} \;
 
-FROM golang:1.25 AS backend
 
-ARG KOITO_VERSION
-ENV CGO_ENABLED=1
-ENV GOOS=linux
+# ---- Backend build ----
+FROM golang:${GO_VERSION}-alpine${ALPINE_VERSION} AS backend
 
-WORKDIR /app
+# Enable if testing only frontend build
+# RUN mkdir -p /out/app
 
-RUN apt-get update && \
-	apt-get install -y libvips-dev pkg-config && \
-	rm -rf /var/lib/apt/lists/*
+ARG KOITO_VERSION=dev
+
+ENV CGO_ENABLED=1 \
+    GOOS=linux
+
+WORKDIR /src
+
+RUN apk add --no-cache \
+    build-base \
+    pkgconfig \
+    vips-dev
 
 COPY go.mod go.sum ./
+
 RUN go mod download
 
 COPY . .
 
-RUN go build -ldflags "-X main.Version=$KOITO_VERSION" -o app ./cmd/api
+RUN mkdir -p /out && \
+    go build \
+      -trimpath \
+      -buildvcs=false \
+      -ldflags="-s -w -X main.Version=${KOITO_VERSION}" \
+      -o /out/app \
+      ./cmd/api
 
 
-FROM debian:bookworm-slim AS final
+# ---- Runtime ----
+FROM alpine:${ALPINE_VERSION} AS final
+
+ARG UID=80003
+ARG GID=80003
+ENV UID=${UID}
+ENV GID=${GID}
+
+ARG KOITO_CONFIG_DIR=/config
+ENV KOITO_CONFIG_DIR=${CONFIG_DIR_ENV}
+
+RUN apk add --no-cache vips ca-certificates && \
+    addgroup -g ${GID} -S koito && \
+    adduser -u ${UID} -S -D -H -G koito koito && \
+    mkdir -p ${KOITO_CONFIG_DIR} /app && \
+    chown koito:koito ${KOITO_CONFIG_DIR}
 
 WORKDIR /app
 
-RUN apt-get update && \
-	apt-get install -y libvips42  && \
-	rm -rf /var/lib/apt/lists/*
-
-COPY --from=backend /app/app ./app
+COPY --from=backend /out/app ./app
 COPY --from=frontend /client/build ./client/build
-COPY ./client/public ./client/public
-COPY ./assets ./assets
-COPY ./db ./db
+COPY assets/ ./assets/
+
+VOLUME ["/config"]
 
 EXPOSE 4110
+
+USER ${UID}:${GID}
 
 ENTRYPOINT ["./app"]
