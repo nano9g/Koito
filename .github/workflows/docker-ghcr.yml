@@ -13,6 +13,13 @@ run-name: Publish Docker Image to GHCR
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
+      - no-backfill
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - ".env.example"
 
 env:
   REGISTRY: ghcr.io
@@ -87,7 +94,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           tags: |
             ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:no-backfill
-            #${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:no-backfill-${{ github.sha }}
           build-args: |
             KOITO_VERSION=dev
           platforms: ${{ matrix.platform }}
