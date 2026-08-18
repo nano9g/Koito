@@ -1,12 +1,3 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-
-# GitHub recommends pinning actions to a commit SHA.
-# To get a newer version, you will need to update the SHA.
-# You can also reference a tag or branch, but the action may change without warning.
-
 name: docker-ghcr
 run-name: Publish Docker Image to GHCR
 
@@ -15,42 +6,41 @@ on:
   push:
     branches:
       - main
-      - no-backfill
+      #- no-backfill
     paths-ignore:
       - "docs/**"
       - "README.md"
       - ".env.example"
 
 jobs:
-  # test:
-  #   name: Go Test
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
+  test:
+    name: Go Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Set up Go
-  #       uses: actions/setup-go@v5
-  #       with:
-  #         go-version-file: go.mod
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
-  #     - name: Install libvips
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y libvips-dev
+      - name: Install libvips
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvips-dev
 
-  #     - name: Verify libvips install
-  #       run: vips --version
+      - name: Verify libvips install
+        run: vips --version
 
-  #     - name: Build
-  #       run: go build -v ./...
+      - name: Build
+        run: go build -v ./...
 
-  #     - name: Test
-  #       uses: robherley/go-test-action@v0
-
+      - name: Test
+        uses: robherley/go-test-action@v0
 
   build:
     name: Build and push
-    # needs: test
+    needs: test
     uses: docker/github-builder/.github/workflows/build.yml@v1
     permissions:
       contents: read
@@ -71,46 +61,3 @@ jobs:
         - registry: ghcr.io
           username: "${{ github.actor }}"
           password: "${{ secrets.GITHUB_TOKEN }}"
-
-  # push_dev:
-  #   name: Push Docker image (dev branch)
-  #   # needs: test
-  #   permissions:
-  #     packages: write
-  #   runs-on: ubuntu-latest
-    
-  #   steps:
-  #     - uses: actions/checkout@v4
-      
-  #     - name: Docker metadata
-  #       id: meta
-  #       uses: docker/metadata-action@v5
-  #       with:
-  #         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-      
-  #     - name: Set up QEMU
-  #       uses: docker/setup-qemu-action@v3
-
-  #     - name: Set up Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
-
-  #     - name: Login to GHCR
-  #       uses: docker/login-action@v4
-  #       with:
-  #         registry: "ghcr.io"
-  #         username: "${{ github.actor }}"
-  #         password: "${{ secrets.GITHUB_TOKEN }}"
-
-  #     - name: Build and push image
-  #       uses: docker/build-push-action@v6
-  #       with:
-  #         context: .
-  #         file: ./Dockerfile
-  #         push: true
-  #         labels: ${{ steps.meta.outputs.labels }}
-  #         tags: |
-  #           ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:no-backfill
-  #         build-args: |
-  #           KOITO_VERSION=dev
-  #         platforms: ${{ matrix.platform }}
-  #         #platforms: linux/amd64,linux/arm64
